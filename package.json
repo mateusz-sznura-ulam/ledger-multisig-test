@@ -1,0 +1,16 @@
+{
+  "name": "ledger-test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@ledgerhq/hw-app-algorand": "^6.24.1",
+    "@ledgerhq/hw-transport-node-hid": "^6.24.1",
+    "algosdk": "^1.15.0"
+  }
+}
