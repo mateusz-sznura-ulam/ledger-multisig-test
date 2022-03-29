@@ -1,5 +1,5 @@
 const algosdk = require("algosdk");
-const msgpack = require("algo-msgpack-with-bigint");
+const msgpack = require("algo-msgpack-with-bigint"); // dep of algosdk, but should be explicitely added to package.json
 const TransportWebUSB = require("@ledgerhq/hw-transport-node-hid").default;
 const Algorand = require("@ledgerhq/hw-app-algorand").default;
 
@@ -19,7 +19,7 @@ const indexer = new algosdk.Indexer(
 );
 
 (async () => {
-  // prepare account1 - algosdk.generateAccount()
+  // prepare account1 - output of algosdk.generateAccount()
   const account1 = {
     addr: "TQL2IMG5RCJMXGHIQ4V5B4NK52MBCUQ6X3H72TFADHP5DMAMK6LDH2CN4A",
     sk: new Uint8Array([
@@ -35,6 +35,9 @@ const indexer = new algosdk.Indexer(
   const algo = new Algorand(transport);
 
   // prepare account2 - ledger account
+  console.log(
+    "getting address from ledger - go to your ledger device and confirm"
+  );
   const { publicKey, address } = await algo.getAddress("44'/283'/0'/0/0", {
     verify: true,
     format: "legacy",
@@ -69,55 +72,53 @@ const indexer = new algosdk.Indexer(
     from: multsigAddress,
     to: receiverAddress,
     amount: 1000, // 1 uALGO
-    note: new TextEncoder().encode('Pozdro z Rotterdamu'),
+    note: new TextEncoder().encode("Pozdro z Rotterdamu"),
     suggestedParams,
   });
-  const txId = txn.txID().toString();
-  console.log(`txn id: ${txId}`);
 
-  const { signature } = await algo.sign("44'/283'/0'/0/0", txn.toByte());
-  const signatureUint8Array = new Uint8Array(signature);
-  console.log(`ledger signature: `, new Uint8Array(signatureUint8Array));
+  console.log(
+    "signing transaction with ledger - go to your ledger device and confirm"
+  );
+  const { signature } = await algo.sign("44'/283'/0'/0/0", txn.toByte()); // returns nodejs Buffer
+  const bytesSignature = new Uint8Array(signature); // this step is probably not needed
+  console.log(`ledger signature: `, new Uint8Array(bytesSignature));
 
-  const bytesSignedTxn_1Signor = algosdk.signMultisigTransaction(
+  const bytesPartiallySignedTxn = algosdk.signMultisigTransaction(
     txn,
     mparams,
     account1.sk
   );
-  console.log(bytesSignedTxn_1Signor);
+  console.log(bytesPartiallySignedTxn);
 
-  //   const signedTxn_1Signor_algosdk = algosdk.decodeSignedTransaction(
-  //     bytesSignedTxn_1Signor.blob
-  //   );
-  //   console.log(signedTxn_1Signor_algosdk);
-  const signedTxn_1Signor_msgpack = decode(bytesSignedTxn_1Signor.blob);
-  console.log(signedTxn_1Signor_msgpack);
-  console.log(signedTxn_1Signor_msgpack.msig.subsig);
+  const decodedPartiallySignedTxn = decode(bytesPartiallySignedTxn.blob); // this decodes bytes, but contrary to algosdk.decodeSignedTransaction, it leaves txn in "obj_for_encoding" form
+  console.log('partially signed txn:\n', decodedPartiallySignedTxn);
+  console.log('partially signed txn subsig:\n', decodedPartiallySignedTxn.msig.subsig);
 
-  const signedTxn_2Signor_msgpack = {
-    ...signedTxn_1Signor_msgpack,
+  const fullySignedTxn = {
+    ...decodedPartiallySignedTxn,
     msig: {
-      ...signedTxn_1Signor_msgpack.msig,
+      ...decodedPartiallySignedTxn.msig,
       subsig: [
         {
-          ...signedTxn_1Signor_msgpack.msig.subsig[0],
+          ...decodedPartiallySignedTxn.msig.subsig[0],
         },
         {
-          ...signedTxn_1Signor_msgpack.msig.subsig[1],
-          s: signatureUint8Array,
+          ...decodedPartiallySignedTxn.msig.subsig[1],
+          s: bytesSignature,
         },
       ],
     },
   };
-  console.log(signedTxn_2Signor_msgpack);
-  console.log(signedTxn_2Signor_msgpack.msig.subsig);
+  console.log('fully signed txn:\n', fullySignedTxn);
+  console.log('fully signed txn subsig:\n', fullySignedTxn.msig.subsig);
 
-  const encodedMsigTxn = encode(signedTxn_2Signor_msgpack);
+  const encodedFullySignedTxn = encode(fullySignedTxn);
 
-  const sentTx = await algodv2.sendRawTransaction(encodedMsigTxn).do();
-  console.log(`Transaction ${sentTx.txId}`);
+  const sentTx = await algodv2.sendRawTransaction(encodedFullySignedTxn).do();
+  console.log(`transaction: ${sentTx.txId}`);
 })();
 
+// those functions are copied from encoding/encoding module of algosdk
 function encode(obj) {
   const options = { sortKeys: true };
   return msgpack.encode(obj, options);
